@@ -54,7 +54,18 @@ cargo run -p usage-core --bin probe -- --accounts          # 不連網:列出帳
 cargo run -p usage-core --bin probe -- --no-refresh        # 真實查詢,不換任何 token
 cargo run -p usage-core --bin probe -- --json              # 完整 JSON(不含 token)
 pwsh scripts\e2e.ps1                                       # 端對端檢查(唯讀);加 -Cadence 驗證 5 分鐘自動更新
+pwsh scripts\ui-e2e.ps1                                    # 真的操作視窗(設定、開關、冷卻),用 Windows 無障礙介面
 ```
+
+### 避免把帳號資料推上 GitHub
+
+```powershell
+git config core.hooksPath .githooks     # 開啟 commit 前檢查(每個 clone 做一次)
+```
+
+`.githooks/pre-commit` 會擋下:token / API key 的樣子、憑證類檔案(`.credentials.json`、`auth.json`……)、
+以及你自己的字詞(email、公司名:一行一個 regex,寫在**不會被 commit** 的 `.git/info/blocked-words.txt`)。
+擋下時只顯示檔名,不顯示內容。`.gitignore` 也排除了憑證類檔案。
 
 畫面預覽(不用開桌面程式):
 
@@ -72,4 +83,6 @@ python -m http.server 8765 --directory ui
 - 依賴 Orca 的資料夾格式(`%APPDATA%\orca\…`),Orca 改格式時要跟著改。
 - 用量端點是官方內部 API,將來可能改變。
 - 共用登入的 token 過期後,要用一下那個帳號(開 `claude` / `codex`)才會更新。
+- 如果你手動用 `CLAUDE_CONFIG_DIR=<Orca 的帳號資料夾> claude` 開著一個「非使用中」的帳號,
+  面板在它 token 過期時仍可能去換 token。官方 CLI 換 token 前會重新讀檔並用檔案鎖,風險很低,但不是零。
 - 只支援 Windows。
