@@ -41,6 +41,8 @@ CREDENTIAL_FILE_NAMES = {
     ".credentials.json", "auth.json", "oauth_creds.json", "oauth-account.json",
     "cache.json", "settings.json", ".env",
 }
+# Example paths may use an obviously fictional user name; any other C:\Users\<name> is reported.
+PLACEHOLDER_USERS = {"me", "user", "username", "you", "<you>", "name", "public", "default"}
 UUID = re.compile(rb"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 WINPATH = re.compile(rb"(?i)[A-Z]:\\{1,2}Users\\{1,2}[A-Za-z0-9._ -]+")
@@ -122,7 +124,9 @@ def main():
             if not ALLOWED_EMAIL.match(m):
                 emails.setdefault(m.decode(errors="replace"), set()).add(where)
         for m in WINPATH.findall(data):
-            winpaths.setdefault(m.decode(errors="replace"), set()).add(where)
+            user = re.split(rb"\\+", m)[-1].decode(errors="replace").strip().lower()
+            if user not in PLACEHOLDER_USERS:
+                winpaths.setdefault(m.decode(errors="replace"), set()).add(where)
 
     for u, w in uuids.items():
         problems.add(("uuid that may be an account / organisation id", ", ".join(sorted(w))))
