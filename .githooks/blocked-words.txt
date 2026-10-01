@@ -1,0 +1,3 @@
+# One regular expression per line. Only generic words here (this file is committed).
+# Personal e-mail addresses / names belong in .git/info/blocked-words.txt (never committed).
+Bearer [A-Za-z0-9_-]{30,}

@@ -1,0 +1,49 @@
+#!/bin/sh
+# Blocks a commit that would publish a login: tokens, keys, credential files or personal words.
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# The matching text is NEVER printed (only the file name), so the hook itself cannot leak a secret.
+#
+# Personal words (e-mail addresses, company names ...): one regex per line in
+# .git/info/blocked-words.txt (never committed). Generic ones may go to .githooks/blocked-words.txt.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+fail=0
+
+patterns='sk-ant-[A-Za-z0-9_-]{20,}|ya29\.[A-Za-z0-9_-]{20,}|1//0[A-Za-z0-9_-]{20,}|GOCSPX-[A-Za-z0-9_-]{10,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(access|refresh|api)[_-]?(token|key)"?[ ]*[:=][ ]*"[A-Za-z0-9_./+-]{24,}"'
+
+for f in $staged; do
+  # 1) file names that hold credentials
+  case "$(basename "$f")" in
+    .credentials.json|auth.json|oauth_creds.json|oauth-account.json|cache.json|settings.json|.env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa*)
+      echo "BLOCKED: '$f' looks like a credential file."
+      fail=1
+      continue ;;
+  esac
+
+  added=$(git diff --cached -U0 --no-color -- "$f" | grep -E '^\+[^+]')
+  [ -z "$added" ] && continue
+
+  # 2) secret-looking text in the added lines
+  if printf '%s\n' "$added" | grep -E -q "$patterns"; then
+    echo "BLOCKED: '$f' contains something that looks like a token or key (text not shown)."
+    fail=1
+  fi
+
+  # 3) personal words
+  for list in .githooks/blocked-words.txt .git/info/blocked-words.txt; do
+    [ -f "$list" ] || continue
+    while IFS= read -r word; do
+      [ -z "$word" ] && continue
+      case "$word" in \#*) continue ;; esac
+      if printf '%s\n' "$added" | grep -E -i -q -- "$word"; then
+        echo "BLOCKED: '$f' contains a personal word listed in $list (text not shown)."
+        fail=1
+      fi
+    done < "$list"
+  done
+done
+
+[ "$fail" -eq 0 ] || { echo "Commit refused. Remove the secret, then commit again."; exit 1; }
+exit 0

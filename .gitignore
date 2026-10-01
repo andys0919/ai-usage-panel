@@ -1,0 +1,20 @@
+# build output
+/target
+/src-tauri/gen
+*.log
+
+# NEVER commit anything that can hold a login (belt and braces: the real files live outside this repo)
+.credentials.json
+auth.json
+oauth_creds.json
+oauth-account.json
+cache.json
+settings.json
+recovery/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*

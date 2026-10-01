@@ -1,0 +1,20 @@
+{
+  "user_id": "user-test-2",
+  "account_id": "acct-test-2",
+  "email": "pro@example.com",
+  "plan_type": "pro",
+  "rate_limit": {
+    "allowed": true,
+    "limit_reached": false,
+    "primary_window": {
+      "used_percent": 60,
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 443423,
+      "reset_at": 1791263032
+    },
+    "secondary_window": null
+  },
+  "additional_rate_limits": null,
+  "credits": { "has_credits": true, "unlimited": false, "balance": "62500" },
+  "rate_limit_reset_credits": { "available_count": 2, "applicable_available_count": 0 }
+}

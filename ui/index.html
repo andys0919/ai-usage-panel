@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AI 用量面板</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- icon sprite (Lucide-style strokes; provider marks are simple geometric glyphs) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-claude" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+      <symbol id="i-codex" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12.5 18H19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-gemini" viewBox="0 0 24 24"><path d="M12 2.5c.7 5.2 4.3 8.8 9.5 9.5-5.2.7-8.8 4.3-9.5 9.5-.7-5.2-4.3-8.8-9.5-9.5 5.2-.7 8.8-4.3 9.5-9.5z" fill="currentColor"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/></g></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></g></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></g></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></g></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M14 9l2 2"/></g></symbol>
+      <symbol id="i-login" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></g></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></g></symbol>
+      <symbol id="i-ticket" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 0 0 6v2a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-2a2 2 0 0 1 0-6V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 6v12" stroke-dasharray="2 3"/></g></symbol>
+      <symbol id="i-spin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" /></g></symbol>
+    </defs>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg><use href="#i-refresh"/></svg></span>
+      <div>
+        <h1>AI 用量面板</h1>
+        <p class="brand-sub">Claude · Codex · Gemini — 5 小時與每週用量</p>
+      </div>
+    </div>
+
+    <div class="status" aria-live="off">
+      <span class="pill" id="pill-last"><svg class="ic"><use href="#i-clock"/></svg><span id="txt-last">尚未更新</span></span>
+      <span class="pill" id="pill-next"><span class="dot" aria-hidden="true"></span><span id="txt-next">—</span></span>
+      <span class="pill pill-warn" id="pill-attn" hidden><svg class="ic"><use href="#i-alert"/></svg><span id="txt-attn"></span></span>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btn-refresh" type="button">
+        <svg class="ic"><use href="#i-refresh"/></svg><span id="lbl-refresh">立即更新</span>
+      </button>
+      <button class="btn" id="btn-settings" type="button" aria-expanded="false" aria-controls="settings">
+        <svg class="ic"><use href="#i-sliders"/></svg><span>設定</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="settings" id="settings" hidden aria-label="設定">
+    <div class="field">
+      <label for="sel-interval">自動更新間隔</label>
+      <select id="sel-interval"></select>
+      <p class="hint">官方 API 會限流,所以最短是 5 分鐘。</p>
+    </div>
+    <div class="field">
+      <label class="check" for="chk-token">
+        <input type="checkbox" id="chk-token">
+        <span>自動更新過期的登入 token</span>
+      </label>
+      <p class="hint">開啟:token 過期時,用官方的更新流程換新,並寫回原本的憑證檔(和官方 CLI 做的事一樣)。關閉:只讀取,不改任何檔案。</p>
+    </div>
+  </section>
+
+  <main class="grid" id="grid" aria-label="所有帳號的用量"></main>
+
+  <footer class="foot">
+    <p>資料直接來自各家官方 API 與 CLI,憑證只在這台電腦讀取,不會上傳到別處。官方會限流,所以預設每 5 分鐘更新一次,手動更新要隔 1 分鐘。</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
