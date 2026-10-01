@@ -1,0 +1,16 @@
+#!/bin/sh
+# Audits EVERYTHING that is about to be published (all commits, text and binary files) for tokens,
+# keys, credential files, account ids and your personal words. A problem refuses the push.
+# Enable once per clone:   git config core.hooksPath .githooks
+# Needs python on PATH. The matching text is never printed.
+
+py=$(command -v python || command -v python3)
+if [ -z "$py" ]; then
+  echo "pre-push: python was not found, so the repository cannot be audited. Push refused."
+  exit 1
+fi
+"$py" scripts/audit-repo.py || {
+  echo "pre-push: push refused. Fix the problems above (or rewrite the commits), then push again."
+  exit 1
+}
+exit 0

@@ -63,9 +63,15 @@ pwsh scripts\ui-e2e.ps1                                    # 真的操作視窗(
 git config core.hooksPath .githooks     # 開啟 commit 前檢查(每個 clone 做一次)
 ```
 
-`.githooks/pre-commit` 會擋下:token / API key 的樣子、憑證類檔案(`.credentials.json`、`auth.json`……)、
-以及你自己的字詞(email、公司名:一行一個 regex,寫在**不會被 commit** 的 `.git/info/blocked-words.txt`)。
-擋下時只顯示檔名,不顯示內容。`.gitignore` 也排除了憑證類檔案。
+兩道自動檢查,擋下時**只顯示檔名,不顯示內容**:
+
+- `.githooks/pre-commit`:檢查這次要 commit 的變更。
+- `.githooks/pre-push`:呼叫 `scripts/audit-repo.py`,檢查**所有 commit 裡的所有檔案**(含圖片、字型等二進位檔和 commit 訊息)。
+
+它們會擋下:token / API key 的樣子、憑證類檔案(`.credentials.json`、`auth.json`……)、
+不在白名單的 email 與 UUID(可能是帳號代號)、本機使用者路徑,以及你自己的字詞
+(email、公司名、帳號代號:一行一個 regex,寫在**不會被 commit** 的 `.git/info/blocked-words.txt`)。
+`.gitignore` 也排除了憑證類檔案。想手動檢查:`python scripts/audit-repo.py`。
 
 畫面預覽(不用開桌面程式):
 

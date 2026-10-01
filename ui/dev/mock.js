@@ -117,7 +117,7 @@ const STATES = [
   account('claude:g', 'claude', 'warning.writeback@example.com', {
     plan: 'Max 5x',
     token_refreshed: true,
-    message: 'token 已更新,但寫回憑證檔失敗(PermissionDenied);新 token 已另存到 C:\\Users\\me\\AppData\\Roaming\\ai-usage-panel\\recovery\\x.json',
+    message: 'token 已更新,但寫回憑證檔失敗(PermissionDenied);新 token 已另存到 %APPDATA%\\ai-usage-panel\\recovery\\x.json',
     windows: [win('session', 5, 250), win('weekly', 12, 8000)],
   }),
 ];
