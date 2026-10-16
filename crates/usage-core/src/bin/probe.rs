@@ -6,6 +6,7 @@
 //!   cargo run -p usage-core --bin probe -- --no-refresh   never refresh/write any token
 //!   cargo run -p usage-core --bin probe -- --only work     only accounts whose key or label contains "work"
 //!   cargo run -p usage-core --bin probe -- --accounts      no network: list accounts + sharing
+//!   cargo run -p usage-core --bin probe -- --sandbox-only  only the panel's sandbox accounts
 
 use usage_core::collector::{Collector, CollectorConfig};
 use usage_core::model::{AccountView, Provider, StateKind, WindowKind, WindowView};
@@ -53,10 +54,12 @@ async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let json = args.iter().any(|a| a == "--json");
     let auto_refresh = !args.iter().any(|a| a == "--no-refresh");
+    let sandbox_only = args.iter().any(|a| a == "--sandbox-only");
 
     if args.iter().any(|a| a == "--accounts") {
         // No network at all: only show what was found and which logins are shared.
-        let roots = usage_core::accounts::Roots::from_env();
+        let mut roots = usage_core::accounts::Roots::from_env();
+        roots.sandbox_only = sandbox_only;
         let rule = |n: usize| {
             if n == 0 {
                 "can be refreshed".to_string()
@@ -90,6 +93,7 @@ async fn main() {
     }
 
     let mut cfg = CollectorConfig::from_env(auto_refresh);
+    cfg.roots.sandbox_only = sandbox_only;
     cfg.only = args
         .iter()
         .position(|a| a == "--only")

@@ -11,4 +11,5 @@ pub mod gemini;
 pub mod http;
 pub mod model;
 pub mod oauth;
+pub mod panel;
 pub mod util;

@@ -16,6 +16,18 @@ cargo build --release -p ai-usage-panel          # 產生單一執行檔
 右上角「設定」:更新間隔(5 / 10 / 15 / 30 分鐘)、是否自動更新過期的登入 token。
 需要重新登入的帳號,卡片上會直接給你一個可複製的指令。
 
+### 網頁版(只顯示沙箱帳號)
+
+同一個畫面,用瀏覽器看。**只讀沙箱裡的帳號**,不碰 Orca、CLI 自己的登入,也不執行 `agy`。
+需要帳號密碼(HTTP Basic),連錯 10 次會鎖 60 秒。只聽 `127.0.0.1`,要從外面看請在前面接通道(例如 Cloudflare Tunnel)。
+
+```sh
+cargo build --release -p usage-web
+PANEL_USER=<帳號> PANEL_PASS=<密碼> ./target/release/ai-usage-web --port 8130
+```
+
+設定與快取存在 `ai-usage-panel/web/`,和桌面版分開。
+
 ## 資料從哪來
 
 | 服務 | 帳號來源 | 怎麼查 |
@@ -68,6 +80,7 @@ cargo clippy --workspace --all-targets -- -D warnings      # 嚴格檢查
 cargo run -p usage-core --bin probe -- --accounts          # 不連網:列出帳號、哪些是共用登入
 cargo run -p usage-core --bin probe -- --no-refresh        # 真實查詢,不換任何 token
 cargo run -p usage-core --bin probe -- --json              # 完整 JSON(不含 token)
+cargo run -p usage-core --bin probe -- --sandbox-only      # 只看沙箱帳號(可和上面的參數一起用)
 pwsh scripts\e2e.ps1                                       # 端對端檢查(唯讀);加 -Cadence 驗證 5 分鐘自動更新
 pwsh scripts\ui-e2e.ps1                                    # 真的操作視窗(設定、開關、冷卻),用 Windows 無障礙介面
 ```
@@ -96,7 +109,8 @@ python -m http.server 8765 --directory ui
 # http://127.0.0.1:8765/index.html?mock=states   每種狀態各一張卡
 ```
 
-結構:`crates/usage-core`(抓資料、換 token、測試)、`src-tauri`(桌面外殼與排程)、`ui`(畫面)、
+結構:`crates/usage-core`(抓資料、換 token、排程、測試)、`src-tauri`(桌面外殼)、
+`crates/usage-web`(網頁版)、`ui`(畫面,網頁版另載 `web.js`)、
 `design-system`(ui-ux-pro-max 產生的設計規則)。
 
 ## 已知限制

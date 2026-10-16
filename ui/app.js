@@ -5,6 +5,9 @@
   // Dev preview in a plain browser: open index.html?mock=live or ?mock=states
   if (new URLSearchParams(location.search).has('mock')) {
     await import('./dev/mock.js');
+  } else if (!window.__TAURI__) {
+    // Served by the web server (ai-usage-web) instead of the desktop app.
+    await import('./web.js').catch(() => {});
   }
 
   const tauri = window.__TAURI__;

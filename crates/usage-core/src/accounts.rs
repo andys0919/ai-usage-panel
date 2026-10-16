@@ -19,6 +19,8 @@ pub struct Roots {
     pub appdata: PathBuf,
     /// %LOCALAPPDATA%; ~/Library/Application Support on macOS
     pub localappdata: PathBuf,
+    /// Only the sandbox's accounts: never look at Orca, the CLIs' own logins or agy.
+    pub sandbox_only: bool,
 }
 
 impl Roots {
@@ -39,6 +41,7 @@ impl Roots {
             home,
             appdata,
             localappdata,
+            sandbox_only: false,
         }
     }
 
@@ -88,8 +91,10 @@ fn dir_name(p: &Path) -> String {
 
 /// One tool's account folders with their ids: Orca's (`<id>`), then the sandbox's (`box-<id>`).
 fn managed_dirs(roots: &Roots, sub: &str) -> Vec<(String, PathBuf)> {
-    let orca = sub_dirs(&roots.orca_dir().join(sub))
-        .into_iter()
+    let orca_root = (!roots.sandbox_only).then(|| roots.orca_dir().join(sub));
+    let orca = orca_root
+        .iter()
+        .flat_map(|r| sub_dirs(r))
         .map(|d| (dir_name(&d), d));
     let sandbox = sub_dirs(&roots.sandbox_dir().join(sub))
         .into_iter()
@@ -112,7 +117,9 @@ pub struct ClaudeAccount {
 
 pub fn discover_claude(roots: &Roots) -> Vec<ClaudeAccount> {
     let sys_creds = roots.home.join(".claude").join(".credentials.json");
-    let active = read_json(&roots.home.join(".claude.json"))
+    let active = (!roots.sandbox_only)
+        .then(|| read_json(&roots.home.join(".claude.json")))
+        .flatten()
         .and_then(|v| v.get("oauthAccount").cloned())
         .unwrap_or(Value::Null);
     let active_uuid = str_of(&active, "accountUuid");
@@ -144,7 +151,7 @@ pub fn discover_claude(roots: &Roots) -> Vec<ClaudeAccount> {
     }
 
     // The CLI's own login, when it is not just a copy of a managed account.
-    if sys_creds.is_file() && !system_is_copy {
+    if !roots.sandbox_only && sys_creds.is_file() && !system_is_copy {
         out.push(ClaudeAccount {
             key: "claude:system-default".into(),
             email: str_of(&active, "emailAddress").unwrap_or_else(|| "Claude(系統預設)".into()),
@@ -252,7 +259,7 @@ pub fn discover_codex(roots: &Roots) -> Vec<CodexAccount> {
                 .join("auth.json"),
         ),
     ];
-    for (key, path) in extra {
+    for (key, path) in extra.into_iter().filter(|_| !roots.sandbox_only) {
         if let Some(doc) = read_json(&path) {
             candidates.push(CodexCandidate {
                 key: key.into(),
@@ -330,6 +337,9 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
 }
 
 pub fn discover_gemini(roots: &Roots) -> Option<GeminiAccount> {
+    if roots.sandbox_only {
+        return None;
+    }
     // An app started from Finder/Dock gets a minimal PATH, so also try the installers' spots.
     let agy_path = find_on_path("agy").or_else(|| {
         [

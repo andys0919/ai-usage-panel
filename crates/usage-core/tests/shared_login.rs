@@ -63,6 +63,7 @@ impl World {
             home: tmp.path().join("home"),
             appdata: tmp.path().join("AppData").join("Roaming"),
             localappdata: tmp.path().join("AppData").join("Local"),
+            sandbox_only: false,
         };
         for d in [&roots.home, &roots.appdata, &roots.localappdata] {
             std::fs::create_dir_all(d).unwrap();
