@@ -15,9 +15,9 @@ use crate::oauth::jwt_claims;
 #[derive(Debug, Clone)]
 pub struct Roots {
     pub home: PathBuf,
-    /// %APPDATA% (Roaming)
+    /// %APPDATA% (Roaming); ~/Library/Application Support on macOS
     pub appdata: PathBuf,
-    /// %LOCALAPPDATA%
+    /// %LOCALAPPDATA%; ~/Library/Application Support on macOS
     pub localappdata: PathBuf,
 }
 
@@ -27,9 +27,14 @@ impl Roots {
         let home = var("USERPROFILE")
             .or_else(|| var("HOME"))
             .unwrap_or_else(|| PathBuf::from("."));
-        let appdata = var("APPDATA").unwrap_or_else(|| home.join("AppData").join("Roaming"));
-        let localappdata =
-            var("LOCALAPPDATA").unwrap_or_else(|| home.join("AppData").join("Local"));
+        let mac_support =
+            cfg!(target_os = "macos").then(|| home.join("Library").join("Application Support"));
+        let appdata = var("APPDATA")
+            .or_else(|| mac_support.clone())
+            .unwrap_or_else(|| home.join("AppData").join("Roaming"));
+        let localappdata = var("LOCALAPPDATA")
+            .or(mac_support)
+            .unwrap_or_else(|| home.join("AppData").join("Local"));
         Self {
             home,
             appdata,
@@ -39,6 +44,12 @@ impl Roots {
 
     pub fn orca_dir(&self) -> PathBuf {
         self.appdata.join("orca")
+    }
+
+    /// The panel's own sandbox: one folder per account, same layout as Orca's, so several
+    /// logins of one tool sit side by side without touching the CLIs' own homes.
+    pub fn sandbox_dir(&self) -> PathBuf {
+        self.appdata.join("ai-usage-panel").join("accounts")
     }
 }
 
@@ -75,6 +86,17 @@ fn dir_name(p: &Path) -> String {
         .unwrap_or_default()
 }
 
+/// One tool's account folders with their ids: Orca's (`<id>`), then the sandbox's (`box-<id>`).
+fn managed_dirs(roots: &Roots, sub: &str) -> Vec<(String, PathBuf)> {
+    let orca = sub_dirs(&roots.orca_dir().join(sub))
+        .into_iter()
+        .map(|d| (dir_name(&d), d));
+    let sandbox = sub_dirs(&roots.sandbox_dir().join(sub))
+        .into_iter()
+        .map(|d| (format!("box-{}", dir_name(&d)), d));
+    orca.chain(sandbox).collect()
+}
+
 // ---- Claude -------------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
@@ -98,14 +120,13 @@ pub fn discover_claude(roots: &Roots) -> Vec<ClaudeAccount> {
     let mut out = Vec::new();
     let mut system_is_copy = false;
 
-    for dir in sub_dirs(&roots.orca_dir().join("claude-accounts")) {
+    for (id, dir) in managed_dirs(roots, "claude-accounts") {
         let auth = dir.join("auth");
         let creds_path = auth.join(".credentials.json");
         if !creds_path.is_file() {
             continue;
         }
         let meta = read_json(&auth.join("oauth-account.json")).unwrap_or(Value::Null);
-        let id = dir_name(&dir);
         let is_active_login = active_uuid.is_some() && str_of(&meta, "accountUuid") == active_uuid;
         let mut shared_copies = Vec::new();
         if is_active_login && sys_creds.is_file() {
@@ -209,11 +230,11 @@ pub fn discover_codex(roots: &Roots) -> Vec<CodexAccount> {
     let mut candidates: Vec<CodexCandidate> = Vec::new();
 
     // Order matters: the first file of a login becomes the account's primary file.
-    for dir in sub_dirs(&orca.join("codex-accounts")) {
+    for (id, dir) in managed_dirs(roots, "codex-accounts") {
         let path = dir.join("home").join("auth.json");
         if let Some(doc) = read_json(&path) {
             candidates.push(CodexCandidate {
-                key: format!("codex:{}", dir_name(&dir)),
+                key: format!("codex:{id}"),
                 path,
                 identity: codex_identity(&doc),
             });
@@ -309,9 +330,14 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
 }
 
 pub fn discover_gemini(roots: &Roots) -> Option<GeminiAccount> {
+    // An app started from Finder/Dock gets a minimal PATH, so also try the installers' spots.
     let agy_path = find_on_path("agy").or_else(|| {
-        let p = roots.localappdata.join("agy").join("bin").join("agy.exe");
-        p.is_file().then_some(p)
+        [
+            roots.localappdata.join("agy").join("bin").join("agy.exe"),
+            roots.home.join(".local").join("bin").join("agy"),
+        ]
+        .into_iter()
+        .find(|p| p.is_file())
     })?;
     let email = read_json(&roots.home.join(".gemini").join("google_accounts.json"))
         .and_then(|v| str_of(&v, "active"))

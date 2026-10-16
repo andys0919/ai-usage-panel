@@ -20,11 +20,26 @@ cargo build --release -p ai-usage-panel          # 產生單一執行檔
 
 | 服務 | 帳號來源 | 怎麼查 |
 |---|---|---|
-| Claude | Orca 管理的每個帳號(`%APPDATA%\orca\claude-accounts\*`)與 `~\.claude` | `GET api.anthropic.com/api/oauth/usage` |
-| Codex | Orca 管理的每個家目錄、`~\.codex`、Orca 執行環境 | `GET chatgpt.com/backend-api/wham/usage` |
+| Claude | Orca 管理的每個帳號(`%APPDATA%\orca\claude-accounts\*`)、沙箱、`~\.claude` | `GET api.anthropic.com/api/oauth/usage` |
+| Codex | Orca 管理的每個家目錄、沙箱、`~\.codex`、Orca 執行環境 | `GET chatgpt.com/backend-api/wham/usage` |
 | Gemini | Antigravity CLI(`agy`)的登入 | 執行 `agy --print "/quota" --output-format json`,**不讀任何憑證** |
 
 這些端點和 Orca、Claude Code 的 `/usage` 用的是同一批(官方沒有公開文件)。
+
+### 沙箱(多帳號)
+
+面板自己的帳號資料夾,一個帳號一個資料夾,格式和 Orca 一樣,不會碰到 CLI 自己的登入:
+
+```
+%APPDATA%\ai-usage-panel\accounts\                      (Windows)
+~/Library/Application Support/ai-usage-panel/accounts/  (macOS)
+  claude-accounts/<名稱>/auth/.credentials.json  (+ oauth-account.json:email 標籤)
+  codex-accounts/<名稱>/home/auth.json
+```
+
+卡片代號是 `claude:box-<名稱>` / `codex:box-<名稱>`。
+新增 Codex 帳號:在 `<名稱>/home/config.toml` 寫 `cli_auth_credentials_store = "file"`,
+再執行 `CODEX_HOME=<那個 home 資料夾> codex login`。
 
 ## 為什麼這樣設計(安全規則)
 
@@ -91,4 +106,5 @@ python -m http.server 8765 --directory ui
 - 共用登入的 token 過期後,要用一下那個帳號(開 `claude` / `codex`)才會更新。
 - 如果你手動用 `CLAUDE_CONFIG_DIR=<Orca 的帳號資料夾> claude` 開著一個「非使用中」的帳號,
   面板在它 token 過期時仍可能去換 token。官方 CLI 換 token 前會重新讀檔並用檔案鎖,風險很低,但不是零。
-- 只支援 Windows。
+- Windows 與 macOS。macOS 的 Claude Code 把登入放在鑰匙圈,面板讀不到,要把帳號放進沙箱;
+  同一個登入如果同時放在沙箱和 Orca,面板不會發現它們是同一個。
