@@ -35,13 +35,15 @@
   };
 
   const PROVIDERS = {
-    claude: { name: 'Claude', icon: 'i-claude' },
-    codex: { name: 'Codex', icon: 'i-codex' },
-    gemini: { name: 'Gemini', icon: 'i-gemini' },
+    claude: { name: 'Claude', title: 'Claude', icon: 'i-claude' },
+    codex: { name: 'GPT · Codex', title: 'GPT · Codex', icon: 'i-codex' },
+    gemini: { name: 'Gemini', title: 'Gemini · Antigravity', icon: 'i-gemini' },
   };
+  const PROVIDER_ORDER = ['claude', 'codex', 'gemini'];
   const GROUP_NAMES = {
     'Gemini Models': 'Gemini 模型',
     'Claude and GPT models': 'Claude 與 GPT 模型',
+    'Gemini 4 Argon': 'Gemini 4 Argon 模型',
   };
   const BADGES = {
     ok: { cls: 'ok', icon: 'i-check', text: '已更新' },
@@ -56,6 +58,7 @@
 
   let snap = null;
   const cards = new Map(); // account key -> { el, sig }
+  const rows = new Map(); // provider key -> { el, grid, countEl }
   const lastWidths = new Map(); // meter id -> last rendered percent (for bar animation)
   let toastTimer = 0;
   let tickTimer = 0;
@@ -72,37 +75,37 @@
   const pad2 = (n) => String(n).padStart(2, '0');
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
-  /** "今天 13:22" / "明天 09:00" / "10/6(週二) 12:01": a weekly reset must show its date. */
+  /** "今天 13:22" / "明天 09:00" / "10/6(二) 12:01": a weekly reset must show its date. */
   function fmtAt(ms, now) {
     const d = new Date(ms);
     const clock = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     const days = Math.round((startOfDay(d) - startOfDay(new Date(now))) / 86400000);
     if (days === 0) return `今天 ${clock}`;
     if (days === 1) return `明天 ${clock}`;
-    return `${d.getMonth() + 1}/${d.getDate()}(週${WEEKDAYS[d.getDay()]}) ${clock}`;
+    return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]}) ${clock}`;
   }
 
   function fmtDur(ms) {
     const m = Math.round(ms / 60000);
-    if (m < 1) return '不到 1 分鐘';
-    if (m < 60) return `${m} 分鐘`;
+    if (m < 1) return '<1m';
+    if (m < 60) return `${m}m`;
     const h = Math.floor(m / 60);
     const mm = m % 60;
-    if (h < 24) return mm ? `${h} 小時 ${mm} 分` : `${h} 小時`;
+    if (h < 24) return mm ? `${h}h ${mm}m` : `${h}h`;
     const d = Math.floor(h / 24);
     const hh = h % 24;
-    return hh ? `${d} 天 ${hh} 小時` : `${d} 天`;
+    return hh ? `${d}d ${hh}h` : `${d}d`;
   }
 
   function fmtAge(ms) {
     const s = Math.max(0, Math.round(ms / 1000));
     if (s < 10) return '剛剛';
-    if (s < 60) return `${s} 秒前`;
+    if (s < 60) return `${s}s 前`;
     const m = Math.round(s / 60);
-    if (m < 60) return `${m} 分鐘前`;
+    if (m < 60) return `${m}m 前`;
     const h = Math.round(m / 60);
-    if (h < 48) return `${h} 小時前`;
-    return `${Math.round(h / 24)} 天前`;
+    if (h < 48) return `${h}h 前`;
+    return `${Math.round(h / 24)}d 前`;
   }
 
   const spanLabel = (min) => {
@@ -154,31 +157,17 @@
     lastWidths.set(id, p);
     const label = windowLabel(w);
     const rounded = Math.round(p);
-    if (w.scope) {
-      // slim variant for per-model windows; the reset time lives in the tooltip
-      return `
-      <div class="meter compact" data-level="${lv.id}" data-resets="${w.resets_at_ms ?? ''}">
-        <div class="meter-top">
-          <span class="meter-label">${esc(label)}</span>
-          <span class="meter-pct">${pctText(p)}<small>%</small></span>
-        </div>
-        <div class="bar" role="progressbar" aria-label="${esc(a.label)} ${esc(label)}用量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${rounded}" aria-valuetext="已用 ${rounded}%,${lv.text}">
-          <div class="bar-fill" style="width:${from}%" data-to="${p}"></div><i class="tick t70"></i><i class="tick t90"></i>
-        </div>
-      </div>`;
-    }
+    const compactCls = w.scope ? ' compact' : '';
+    const lvlTag = lv.id !== 'ok' ? `<span class="level">${lv.text}</span>` : '';
     return `
-      <div class="meter" data-level="${lv.id}">
+      <div class="meter${compactCls}" data-level="${lv.id}" data-resets="${w.resets_at_ms ?? ''}">
         <div class="meter-top">
-          <span class="meter-label">${esc(label)}</span>
+          <span class="meter-label">${esc(label)}${lvlTag}</span>
+          <span class="reset" data-resets="${w.resets_at_ms ?? ''}"></span>
           <span class="meter-pct">${pctText(p)}<small>%</small></span>
         </div>
         <div class="bar" role="progressbar" aria-label="${esc(a.label)} ${esc(label)}用量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${rounded}" aria-valuetext="已用 ${rounded}%,${lv.text}">
           <div class="bar-fill" style="width:${from}%" data-to="${p}"></div><i class="tick t70"></i><i class="tick t90"></i>
-        </div>
-        <div class="meter-bot">
-          <span class="level">${lv.text}</span>
-          <span class="reset" data-resets="${w.resets_at_ms ?? ''}"></span>
         </div>
       </div>`;
   }
@@ -186,18 +175,18 @@
   function metersHtml(a) {
     const groups = groupWindows(a.windows);
     const titled = groups.length > 1 || (groups.length === 1 && groups[0].group);
+    const multiCls = groups.length > 1 ? ' multi-group' : '';
     const parts = groups.map((g) => {
       const title = titled && g.group ? `<div class="group-title">${esc(GROUP_NAMES[g.group] || g.group)}</div>` : '';
-      return title + g.windows.map((w) => meterHtml(a, w)).join('');
+      return `<div class="meter-group">${title}${g.windows.map((w) => meterHtml(a, w)).join('')}</div>`;
     });
-    return `<div class="meters">${parts.join('')}</div>`;
+    return `<div class="meters${multiCls}">${parts.join('')}</div>`;
   }
 
   function skeletonHtml() {
     const one = `<div>
-      <div class="meter-top"><span class="sk sk-line" style="width:64px"></span><span class="sk sk-num"></span></div>
+      <div class="meter-top"><span class="sk sk-line" style="width:56px"></span><span class="sk sk-num"></span></div>
       <div class="sk sk-bar"></div>
-      <div class="meter-bot"><span class="sk sk-line" style="width:40px"></span><span class="sk sk-line" style="width:120px"></span></div>
     </div>`;
     return `<div class="meters" aria-hidden="true">${one}${one}</div>`;
   }
@@ -217,44 +206,64 @@
     return `<div class="callout ${cls}" role="${cls === 'bad' ? 'alert' : 'note'}">${icon(ic)}<div class="callout-body"><span>${esc(a.message)}</span>${cmd}</div></div>`;
   }
 
+  function ticketsHtml(a) {
+    const exp = (a.extras || [])
+      .filter((e) => e.key === 'reset_credit_expires')
+      .map((e) => Number(e.value))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (!exp.length) return '';
+    const rows = exp.map((ms, i) => {
+      const label = exp.length > 1 ? `重置券 #${i + 1}` : '重置券';
+      return `<div class="ticket-row"><span class="ticket-name">${icon('i-ticket')}${label}</span><span class="ticket-exp" data-expires="${ms}"></span></div>`;
+    });
+    return `<div class="tickets">${rows.join('')}</div>`;
+  }
+
   function cardInner(a) {
     const pv = PROVIDERS[a.provider] || PROVIDERS.claude;
     const b = BADGES[a.state] || BADGES.error;
     const chips = [];
     if (a.plan) chips.push(`<span class="chip">${esc(a.plan)}</span>`);
-    if (a.detail) chips.push(`<span class="chip dim" title="${esc(a.detail)}">${esc(a.detail)}</span>`);
     for (const e of a.extras || []) {
-      if (e.key === 'reset_credits') chips.push(`<span class="chip" title="可用的額度重置券數量">${icon('i-ticket')}重置券 ×${esc(e.value)}</span>`);
+      if (e.key === 'reset_credits') chips.push(`<span class="chip chip-ticket" title="可用的額度重置券數量">${icon('i-ticket')}×${esc(e.value)}</span>`);
     }
     let body = '';
     if (a.state === 'loading') body = skeletonHtml();
     else if (a.windows.length) body = metersHtml(a);
+    const tickets = a.state === 'loading' ? '' : ticketsHtml(a);
+    const statusRight =
+      a.state === 'ok'
+        ? `<span class="when" data-fetched="${a.fetched_at_ms ?? ''}"><span class="when-text"></span></span>`
+        : `<span class="badge ${b.cls}">${icon(b.icon)}${b.text}</span>`;
 
     return `
       <div class="card-head">
-        <span class="pv"><svg aria-hidden="true"><use href="#${pv.icon}"/></svg>${pv.name}</span>
-        <span class="badge ${b.cls}">${icon(b.icon)}${b.text}</span>
+        <div class="card-head-left">
+          <span class="pv"><svg aria-hidden="true"><use href="#${pv.icon}"/></svg>${pv.name}</span>
+          ${chips.join('')}
+        </div>
+        ${statusRight}
       </div>
-      <h2 class="acct" title="${esc(a.label)}">${esc(a.label)}</h2>
-      ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
+      <div class="acct-row">
+        <h2 class="acct" title="${esc(a.label)}">${esc(a.label)}</h2>
+        ${a.detail ? `<span class="acct-detail" title="${esc(a.detail)}">${esc(a.detail)}</span>` : ''}
+      </div>
       ${body}
-      ${a.state === 'loading' ? '' : calloutHtml(a)}
-      <div class="card-foot">
-        <span class="when" data-fetched="${a.fetched_at_ms ?? ''}">${icon('i-clock')}<span class="when-text"></span></span>
-        ${a.token_refreshed ? '<span class="note">token 已自動更新</span>' : ''}
-      </div>`;
+      ${tickets}
+      ${a.state === 'loading' ? '' : calloutHtml(a)}`;
   }
 
   function renderCards() {
     const accounts = snap.accounts;
     if (!accounts.length) {
       cards.clear();
+      rows.clear();
       els.grid.innerHTML =
         '<div class="empty"><strong>找不到任何帳號</strong>請先用 <code>orca account add</code> 登入 Claude / Codex,或安裝並登入 <code>agy</code>(Gemini)。</div>';
       return;
     }
     const seen = new Set();
-    const ordered = [];
+    const byProvider = new Map();
     const changed = [];
     for (const a of accounts) {
       seen.add(a.key);
@@ -272,7 +281,8 @@
         c.sig = sig;
         changed.push(c.el);
       }
-      ordered.push(c.el);
+      if (!byProvider.has(a.provider)) byProvider.set(a.provider, []);
+      byProvider.get(a.provider).push(c.el);
     }
     for (const [key, c] of cards) {
       if (!seen.has(key)) {
@@ -280,9 +290,48 @@
         cards.delete(key);
       }
     }
-    const current = Array.from(els.grid.children);
-    if (current.length !== ordered.length || current.some((n, i) => n !== ordered[i])) {
-      els.grid.replaceChildren(...ordered);
+
+    const activeRowEls = [];
+    for (const pvKey of PROVIDER_ORDER) {
+      const list = byProvider.get(pvKey);
+      if (!list || !list.length) {
+        const old = rows.get(pvKey);
+        if (old) {
+          old.el.remove();
+          rows.delete(pvKey);
+        }
+        continue;
+      }
+      let r = rows.get(pvKey);
+      if (!r) {
+        const pv = PROVIDERS[pvKey] || PROVIDERS.claude;
+        const sec = document.createElement('section');
+        sec.className = 'pv-row';
+        sec.dataset.provider = pvKey;
+        sec.innerHTML = `
+          <div class="pv-row-head">
+            <span class="pv-row-title"><svg aria-hidden="true"><use href="#${pv.icon}"/></svg>${esc(pv.title)}</span>
+            <span class="pv-row-count"></span>
+          </div>
+          <div class="pv-row-cards"></div>`;
+        r = {
+          el: sec,
+          grid: sec.querySelector('.pv-row-cards'),
+          countEl: sec.querySelector('.pv-row-count'),
+        };
+        rows.set(pvKey, r);
+      }
+      setText(r.countEl, `${list.length}`);
+      const curCards = Array.from(r.grid.children);
+      if (curCards.length !== list.length || curCards.some((n, i) => n !== list[i])) {
+        r.grid.replaceChildren(...list);
+      }
+      activeRowEls.push(r.el);
+    }
+
+    const currentRows = Array.from(els.grid.children);
+    if (currentRows.length !== activeRowEls.length || currentRows.some((n, i) => n !== activeRowEls[i])) {
+      els.grid.replaceChildren(...activeRowEls);
     }
     // Start bar animations once the cards are in the document.
     void els.grid.offsetWidth;
@@ -315,37 +364,41 @@
     if (!snap) return;
     const now = Date.now();
 
-    const resetText = (t) => (t <= now ? '已重置,等下次更新' : `${fmtDur(t - now)}後重置 · ${fmtAt(t, now)}`);
+    const resetText = (t) => (t <= now ? '已重置' : `${fmtDur(t - now)} · ${fmtAt(t, now)}`);
     els.grid.querySelectorAll('.reset').forEach((n) => {
       if (!n.dataset.resets) return setText(n, '');
       const t = Number(n.dataset.resets);
       setText(n, resetText(t));
       n.title = new Date(t).toLocaleString('zh-TW');
     });
-    els.grid.querySelectorAll('.meter.compact[data-resets]').forEach((n) => {
-      if (n.dataset.resets) n.title = resetText(Number(n.dataset.resets));
+    const expText = (t) => (t <= now ? '已到期' : `${fmtAt(t, now)} 到期 (${fmtDur(t - now)})`);
+    els.grid.querySelectorAll('.ticket-exp').forEach((n) => {
+      if (!n.dataset.expires) return setText(n, '');
+      const t = Number(n.dataset.expires);
+      setText(n, expText(t));
+      n.title = new Date(t).toLocaleString('zh-TW');
     });
 
     const staleAfter = snap.interval_secs * 2000 + 60000;
     els.grid.querySelectorAll('.when').forEach((n) => {
       const text = n.querySelector('.when-text');
       if (!n.dataset.fetched) {
-        setText(text, '尚未取得資料');
+        setText(text, '—');
         return;
       }
       const age = now - Number(n.dataset.fetched);
-      setText(text, `更新於 ${fmtAge(age)}`);
+      setText(text, fmtAge(age));
       n.classList.toggle('old', age > staleAfter);
     });
 
     const last = snap.cycle_started_ms;
-    setText(els.txtLast, last ? `上次更新 ${fmtClock.format(last)} · ${fmtAge(now - last)}` : '尚未更新');
+    setText(els.txtLast, last ? `${fmtClock.format(last)} (${fmtAge(now - last)})` : '尚未更新');
     els.txtLast.parentElement.title = last ? `上次更新:${fmtClockSec.format(last)}` : '';
     els.pillNext.classList.toggle('running', snap.cycle_running);
     if (snap.cycle_running) setText(els.txtNext, '更新中…');
     else {
       const left = snap.next_cycle_ms - now;
-      setText(els.txtNext, left > 0 ? `下次更新:${fmtDur(left)}後` : '即將更新');
+      setText(els.txtNext, left > 0 ? `下次 ${fmtDur(left)}` : '即將更新');
     }
 
     const attention = snap.accounts.filter((a) => NEEDS_ATTENTION.has(a.state)).length;

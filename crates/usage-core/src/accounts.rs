@@ -336,10 +336,20 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
     None
 }
 
+fn agy_log_email(home: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(
+        home.join(".gemini").join("antigravity-cli").join("cli.log"),
+    )
+    .ok()?;
+    text.lines()
+        .rev()
+        .find_map(|l| l.split("authenticated successfully as ").nth(1))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
 pub fn discover_gemini(roots: &Roots) -> Option<GeminiAccount> {
-    if roots.sandbox_only {
-        return None;
-    }
     // An app started from Finder/Dock gets a minimal PATH, so also try the installers' spots.
     let agy_path = find_on_path("agy").or_else(|| {
         [
@@ -351,6 +361,7 @@ pub fn discover_gemini(roots: &Roots) -> Option<GeminiAccount> {
     })?;
     let email = read_json(&roots.home.join(".gemini").join("google_accounts.json"))
         .and_then(|v| str_of(&v, "active"))
+        .or_else(|| agy_log_email(&roots.home))
         .unwrap_or_else(|| "Google 帳號".into());
     Some(GeminiAccount {
         key: "gemini:antigravity".into(),

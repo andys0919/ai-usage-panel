@@ -72,6 +72,29 @@ pub fn parse_usage(v: &Value) -> Option<CodexUsage> {
     })
 }
 
+pub fn parse_reset_credits_expiry(v: &Value) -> Vec<Extra> {
+    let Some(items) = v.get("credits").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let mut expires: Vec<i64> = items
+        .iter()
+        .filter(|c| {
+            c.get("status")
+                .and_then(Value::as_str)
+                .is_none_or(|s| s == "available")
+        })
+        .filter_map(|c| c.get("expires_at").and_then(parse_ts))
+        .collect();
+    expires.sort_unstable();
+    expires
+        .into_iter()
+        .map(|ms| Extra {
+            key: "reset_credit_expires".into(),
+            value: ms.to_string(),
+        })
+        .collect()
+}
+
 pub async fn fetch_usage(
     http: &reqwest::Client,
     url: &str,
@@ -89,6 +112,18 @@ pub async fn fetch_usage(
         headers.push(("ChatGPT-Account-Id", id));
     }
     let json = get_json(http, url, &headers).await?;
-    parse_usage(&json)
-        .ok_or_else(|| FetchError::Parse("回應不像用量資料(沒有 plan_type)".to_string()))
+    let mut usage = parse_usage(&json)
+        .ok_or_else(|| FetchError::Parse("回應不像用量資料(沒有 plan_type)".to_string()))?;
+    if usage.extras.iter().any(|e| e.key == "reset_credits") {
+        let credits_url = match url.strip_suffix("/usage") {
+            Some(base) => format!("{base}/rate-limit-reset-credits"),
+            None => format!("{url}/rate-limit-reset-credits"),
+        };
+        if let Ok(credits_json) = get_json(http, &credits_url, &headers).await {
+            usage
+                .extras
+                .extend(parse_reset_credits_expiry(&credits_json));
+        }
+    }
+    Ok(usage)
 }

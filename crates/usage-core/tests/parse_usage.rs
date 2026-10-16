@@ -268,6 +268,68 @@ fn g5_success_without_groups_is_an_error() {
 }
 
 #[test]
+fn c6_cedar_ember_grants_map_reset_credits_and_expiry() {
+    let v = json!({
+        "cedar_ember": {
+            "eligible": true,
+            "grants": [
+                {
+                    "id": "opus55-launch-team-20260921",
+                    "resets_total": 1,
+                    "resets_left": 1,
+                    "ends_at": "2026-10-22T16:00:00+00:00",
+                    "paused": false
+                },
+                {
+                    "id": "spent-grant",
+                    "resets_total": 1,
+                    "resets_left": 0,
+                    "ends_at": "2026-10-20T00:00:00+00:00",
+                    "paused": false
+                }
+            ]
+        }
+    });
+    assert_eq!(
+        claude::parse_extras(&v),
+        vec![
+            Extra {
+                key: "reset_credits".into(),
+                value: "1".into()
+            },
+            Extra {
+                key: "reset_credit_expires".into(),
+                value: "1792684800000".into()
+            },
+        ]
+    );
+}
+
+#[test]
+fn x7_reset_credits_detail_maps_sorted_expiry_timestamps() {
+    let v = json!({
+        "credits": [
+            { "status": "available", "expires_at": "2026-10-29T19:40:02Z" },
+            { "status": "redeemed", "expires_at": "2026-10-15T00:00:00Z" },
+            { "status": "available", "expires_at": "2026-10-22T21:12:01Z" }
+        ]
+    });
+    assert_eq!(
+        codex::parse_reset_credits_expiry(&v),
+        vec![
+            Extra {
+                key: "reset_credit_expires".into(),
+                value: "1792703521000".into()
+            },
+            Extra {
+                key: "reset_credit_expires".into(),
+                value: "1793302802000".into()
+            },
+        ]
+    );
+}
+
+#[test]
 fn g6_unknown_window_label_and_out_of_range_fraction() {
     let out = json!({
         "status": "SUCCESS",

@@ -294,10 +294,10 @@ impl Collector {
         self.oauth_flow(flow, view, &flavor, |token| async move {
             claude::fetch_usage(http, url, &token)
                 .await
-                .map(|windows| Fetched {
-                    windows,
+                .map(|u| Fetched {
+                    windows: u.windows,
                     plan: None,
-                    extras: Vec::new(),
+                    extras: u.extras,
                 })
         })
         .await

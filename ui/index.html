@@ -30,10 +30,7 @@
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true"><svg><use href="#i-refresh"/></svg></span>
-      <div>
-        <h1>AI 用量面板</h1>
-        <p class="brand-sub">Claude · Codex · Gemini — 5 小時與每週用量</p>
-      </div>
+      <h1>AI 用量面板</h1>
     </div>
 
     <div class="status" aria-live="off">
@@ -56,22 +53,16 @@
     <div class="field">
       <label for="sel-interval">自動更新間隔</label>
       <select id="sel-interval"></select>
-      <p class="hint">官方 API 會限流,所以最短是 5 分鐘。</p>
     </div>
     <div class="field">
       <label class="check" for="chk-token">
         <input type="checkbox" id="chk-token">
         <span>自動更新過期的登入 token</span>
       </label>
-      <p class="hint">開啟:token 過期時,用官方的更新流程換新,並寫回原本的憑證檔(和官方 CLI 做的事一樣)。關閉:只讀取,不改任何檔案。</p>
     </div>
   </section>
 
   <main class="grid" id="grid" aria-label="所有帳號的用量"></main>
-
-  <footer class="foot">
-    <p>資料直接來自各家官方 API 與 CLI,憑證只在這台電腦讀取,不會上傳到別處。官方會限流,所以預設每 5 分鐘更新一次,手動更新要隔 1 分鐘。</p>
-  </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 

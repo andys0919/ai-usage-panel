@@ -3,10 +3,24 @@
 use serde_json::Value;
 
 use crate::http::{get_json, FetchError};
-use crate::model::{WindowKind, WindowView};
+use crate::model::{Extra, WindowKind, WindowView};
 use crate::util::{clamp_pct, parse_ts};
 
-pub const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+pub const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1";
+
+/// `/api/oauth/usage` only populates `cedar_ember` (reset credits) when the caller identifies as
+/// `claude-cli/*` (unlike the token endpoint, `/api/oauth/usage` does not throttle this UA).
+const USAGE_USER_AGENT: &str = concat!(
+    "ai-usage-panel/",
+    env!("CARGO_PKG_VERSION"),
+    " claude-cli/2.1.301 (external, cli)"
+);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClaudeUsage {
+    pub windows: Vec<WindowView>,
+    pub extras: Vec<Extra>,
+}
 
 const SESSION_MINUTES: u32 = 300;
 const WEEK_MINUTES: u32 = 10080;
@@ -121,11 +135,49 @@ pub fn plan_label(
     }
 }
 
+pub fn parse_extras(v: &Value) -> Vec<Extra> {
+    let Some(grants) = v.pointer("/cedar_ember/grants").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let mut total = 0i64;
+    let mut expires: Vec<i64> = Vec::new();
+    for g in grants {
+        if g.get("paused").and_then(Value::as_bool) == Some(true) {
+            continue;
+        }
+        let left = g.get("resets_left").and_then(Value::as_i64).unwrap_or(0);
+        if left <= 0 {
+            continue;
+        }
+        total += left;
+        if let Some(ms) = g.get("ends_at").and_then(parse_ts) {
+            for _ in 0..left {
+                expires.push(ms);
+            }
+        }
+    }
+    if total <= 0 {
+        return Vec::new();
+    }
+    expires.sort_unstable();
+    let mut out = vec![Extra {
+        key: "reset_credits".into(),
+        value: total.to_string(),
+    }];
+    for ms in expires {
+        out.push(Extra {
+            key: "reset_credit_expires".into(),
+            value: ms.to_string(),
+        });
+    }
+    out
+}
+
 pub async fn fetch_usage(
     http: &reqwest::Client,
     url: &str,
     access_token: &str,
-) -> Result<Vec<WindowView>, FetchError> {
+) -> Result<ClaudeUsage, FetchError> {
     let bearer = format!("Bearer {access_token}");
     let json = get_json(
         http,
@@ -133,7 +185,7 @@ pub async fn fetch_usage(
         &[
             ("Authorization", bearer.as_str()),
             ("anthropic-beta", "oauth-2025-04-20"),
-            ("User-Agent", crate::http::USER_AGENT),
+            ("User-Agent", USAGE_USER_AGENT),
         ],
     )
     .await?;
@@ -141,5 +193,8 @@ pub async fn fetch_usage(
     if windows.is_empty() {
         return Err(FetchError::Parse("回應裡沒有用量資料".to_string()));
     }
-    Ok(windows)
+    Ok(ClaudeUsage {
+        windows,
+        extras: parse_extras(&json),
+    })
 }
